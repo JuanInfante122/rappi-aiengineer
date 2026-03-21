@@ -1,0 +1,24 @@
+# Environment
+.env
+
+# Generated database (always rebuilt on startup)
+data/rappi_ops.db
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Reports (generated artifacts)
+*.html
+
+# OS
+.DS_Store
