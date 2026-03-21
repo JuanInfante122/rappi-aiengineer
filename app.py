@@ -6,6 +6,7 @@ a production-quality interface with sidebar, custom CSS, compound messages
 example questions.
 """
 
+import base64
 import os
 from pathlib import Path
 
@@ -27,7 +28,7 @@ from data.load_data import run_etl
 load_dotenv()
 
 DB_PATH = Path("data/rappi_ops.db")
-LOGO_PATH = Path("assets/rappi_logo.png")
+LOGO_PATH = Path("assets/rappi_logo.svg")
 
 # Example questions: Spanish, ascending complexity
 EXAMPLE_QUESTIONS = [
@@ -271,9 +272,18 @@ def handle_user_message(user_input: str) -> None:
 # --- Page config must be the very first Streamlit call ---
 st.set_page_config(
     page_title="Rappi Ops Intelligence",
-    page_icon=str(LOGO_PATH) if LOGO_PATH.exists() else ":bar_chart:",
+    page_icon=":bar_chart:",
     layout="wide",
 )
+
+# Override the browser tab favicon with the Rappi SVG.
+# st.set_page_config does not support SVG, so we inject a <link> tag directly.
+if LOGO_PATH.exists():
+    _svg_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode()
+    st.markdown(
+        f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{_svg_b64}">',
+        unsafe_allow_html=True,
+    )
 
 # Inject custom CSS for Rappi-branded chat bubbles
 st.markdown(CHAT_CSS, unsafe_allow_html=True)
@@ -284,9 +294,14 @@ if "messages" not in st.session_state:
 
 # --- Sidebar ---
 with st.sidebar:
-    # Rappi logo
+    # Rappi logo — render SVG inline, scaled and centered in the sidebar
     if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), width=150)
+        svg = LOGO_PATH.read_text()
+        svg = svg.replace('width="24"', 'width="160"').replace('height="24"', 'height="52"')
+        st.markdown(
+            f'<div style="text-align:center;padding:8px 0">{svg}</div>',
+            unsafe_allow_html=True,
+        )
 
     # App title and caption
     st.title("Rappi Ops Intelligence")
@@ -318,9 +333,7 @@ with st.sidebar:
 
 # --- Chat display loop ---
 for i, msg in enumerate(st.session_state.messages):
-    # Use Rappi logo as avatar for assistant messages when it exists
-    avatar = str(LOGO_PATH) if msg["role"] == "assistant" and LOGO_PATH.exists() else None
-    with st.chat_message(msg["role"], avatar=avatar):
+    with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if msg["role"] == "assistant":
             render_chart_compound(msg, index=i)
