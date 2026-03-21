@@ -172,10 +172,40 @@ def test_score_cap_and_filter() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="implemented in plan 04-02")
 def test_engine_json_serializable() -> None:
-    """run_insights_engine output must be JSON-serializable for Jinja2 template rendering."""
-    pass
+    """Engine output must be JSON-serializable (Python primitives only)."""
+    import json
+    from pathlib import Path
+    from insights.engine import run_insights_engine
+
+    db_path = Path("data/rappi_ops.db")
+    if not db_path.exists():
+        pytest.skip("SQLite database not available")
+
+    results = run_insights_engine(db_path, "CO")
+    # Must be a list
+    assert isinstance(results, list)
+    # Must be JSON-serializable (no numpy types)
+    serialized = json.dumps(results)
+    assert isinstance(serialized, str)
+    # Each insight must have all 11 evidence keys + severity_score
+    if results:
+        required_keys = {
+            "metric_name", "zone_id", "country", "week_number",
+            "current_value", "wow_change_pct", "zscore", "peer_avg",
+            "trend_weeks", "trend_direction", "detector_type", "severity_score"
+        }
+        for insight in results:
+            assert required_keys.issubset(insight.keys()), (
+                f"Missing keys: {required_keys - insight.keys()}"
+            )
+        # Severity scores should be >= 30 (filter)
+        assert all(r["severity_score"] >= 30 for r in results)
+        # Should be sorted descending
+        scores = [r["severity_score"] for r in results]
+        assert scores == sorted(scores, reverse=True)
+        # At most 25
+        assert len(results) <= 25
 
 
 # ---------------------------------------------------------------------------

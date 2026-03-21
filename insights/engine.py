@@ -245,11 +245,11 @@ def _run_correlations(db_path: Path, country: str) -> list[dict]:
     results: list[dict] = []
 
     for metric_a, metric_b in _CORRELATION_PAIRS:
-        # Load metric A at week 0
+        # Load metric A at week 0 — aggregate by zone_id to ensure a unique index.
         df_a = _load_metric_data(db_path, country, metric_a)
-        df_a_w0 = df_a[df_a["week_number"] == 0].set_index("zone_id")["value"]
+        df_a_w0 = df_a[df_a["week_number"] == 0].groupby("zone_id")["value"].mean()
 
-        # Load metric B — orders come from raw_orders table
+        # Load metric B — orders come from raw_orders table.
         if metric_b == "Orders":
             conn = sqlite3.connect(db_path)
             try:
@@ -257,14 +257,13 @@ def _run_correlations(db_path: Path, country: str) -> list[dict]:
                     "SELECT zone_id, value FROM raw_orders "
                     "WHERE country = ? AND week_number = 0"
                 )
-                df_b_w0 = pd.read_sql_query(query, conn, params=(country,)).set_index("zone_id")[
-                    "value"
-                ]
+                df_b_raw = pd.read_sql_query(query, conn, params=(country,))
             finally:
                 conn.close()
+            df_b_w0 = df_b_raw.groupby("zone_id")["value"].mean()
         else:
             df_b = _load_metric_data(db_path, country, metric_b)
-            df_b_w0 = df_b[df_b["week_number"] == 0].set_index("zone_id")["value"]
+            df_b_w0 = df_b[df_b["week_number"] == 0].groupby("zone_id")["value"].mean()
 
         corr_result = cross_zone_correlation(df_a_w0, df_b_w0)
         if corr_result is None:
@@ -346,14 +345,17 @@ def run_insights_engine(db_path: Path, country: str) -> list[dict]:
         if df.empty:
             continue
 
-        # Cross-zone snapshot at week 0 for peer benchmarking
+        # Cross-zone snapshot at week 0 for peer benchmarking.
+        # Aggregate per zone_id to ensure a unique index for Z-score computation.
         week0_mask = df["week_number"] == 0
-        all_zones_at_week0 = df[week0_mask].set_index("zone_id")["value"]
+        all_zones_at_week0 = df[week0_mask].groupby("zone_id")["value"].mean()
 
         for zone_id in df["zone_id"].unique():
             zone_mask = df["zone_id"] == zone_id
             zone_df = df[zone_mask]
-            zone_series = zone_df.set_index("week_number")["value"]
+            # Aggregate duplicate week entries (same zone can appear multiple times
+            # in the raw data); use mean so the series index is unique.
+            zone_series = zone_df.groupby("week_number")["value"].mean()
 
             # Build peer group for opportunity detector: same zone_type
             if not zone_df.empty:
