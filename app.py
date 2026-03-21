@@ -270,20 +270,18 @@ def handle_user_message(user_input: str) -> None:
 
 
 # --- Page config must be the very first Streamlit call ---
-st.set_page_config(
-    page_title="Rappi Ops Intelligence",
-    page_icon=":bar_chart:",
-    layout="wide",
-)
-
-# Override the browser tab favicon with the Rappi SVG.
-# st.set_page_config does not support SVG, so we inject a <link> tag directly.
+# Pass the SVG as a base64 data URI so Streamlit writes it into the <head>
+# favicon link — st.markdown injections go into the body and are ignored by browsers.
+_page_icon: str | Path = ":bar_chart:"
 if LOGO_PATH.exists():
     _svg_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode()
-    st.markdown(
-        f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{_svg_b64}">',
-        unsafe_allow_html=True,
-    )
+    _page_icon = f"data:image/svg+xml;base64,{_svg_b64}"
+
+st.set_page_config(
+    page_title="Rappi Ops Intelligence",
+    page_icon=_page_icon,
+    layout="wide",
+)
 
 # Inject custom CSS for Rappi-branded chat bubbles
 st.markdown(CHAT_CSS, unsafe_allow_html=True)
@@ -332,8 +330,10 @@ with st.sidebar:
     st.caption("Datos: 9 paises, ~1,200 zonas, 9 semanas (L0W-L8W)")
 
 # --- Chat display loop ---
+_bot_avatar = str(LOGO_PATH) if LOGO_PATH.exists() else None
 for i, msg in enumerate(st.session_state.messages):
-    with st.chat_message(msg["role"]):
+    avatar = _bot_avatar if msg["role"] == "assistant" else None
+    with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
         if msg["role"] == "assistant":
             render_chart_compound(msg, index=i)
