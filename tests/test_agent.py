@@ -7,6 +7,7 @@ Tests verify that:
 - create_agent() returns a properly configured AgentExecutor
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -117,6 +118,10 @@ def test_system_prefix_has_zone_uppercase_rule():
 @pytest.mark.skipif(
     not Path("data/rappi_ops.db").exists(),
     reason="data/rappi_ops.db not built — run ETL first",
+)
+@pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="OPENAI_API_KEY not set — ChatOpenAI requires a valid API key",
 )
 def test_create_agent_returns_executor(db_conn):
     """create_agent() must return an AgentExecutor with an invoke method."""
