@@ -78,7 +78,7 @@ def test_zone_id_format(db_conn) -> None:
     """All zone_id values are uppercase with underscores only — no spaces or hyphens.
 
     Validates that build_zone_id() applied .upper().replace(' ', '_').replace('-', '_')
-    consistently to all rows, which is required for Phase 2 LIKE '%TERM%' queries.
+    consistently to all rows, enabling reliable LIKE '%TERM%' queries.
     """
     zone_id_pattern = re.compile(r'^[A-Z0-9_]+$')
     cursor = db_conn.execute("SELECT DISTINCT zone_id FROM raw_input_metrics")
