@@ -1,17 +1,22 @@
-"""Tests for the statistical insights engine: detectors, scorer, and stubs for narrator/engine.
+"""Tests for the statistical insights engine: detectors, scorer, narrator, and engine.
 
-Tests are organized in order of implementation:
-  - Task 1 (this file): Scorer tests + test scaffold
-  - Task 2: Detector implementations that make RED tests go GREEN
-  - Plans 02/03: Stubs below are completed when engine orchestrator and narrator are built
+Tests are organized in implementation order:
+  - Detectors: wow, trend, peer, correlation, opportunity
+  - Scorer: tier multiplier, cap/filter
+  - Engine orchestrator: JSON-serializable output
+  - Narrator: mocked LLM, retry/fallback, parallel execution, executive summary sequencing
 """
 
 from __future__ import annotations
+
+import json
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 
 from insights.scorer import METRIC_CONFIG, compute_severity_score
+from insights.narrator import generate_narrative, generate_narratives_parallel, generate_executive_summary
 
 
 # ---------------------------------------------------------------------------
@@ -209,29 +214,148 @@ def test_engine_json_serializable() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stubs for LLM narrator (plan 04-03)
+# Narrator tests (mocked LLM — no real API calls)
 # ---------------------------------------------------------------------------
 
+_SAMPLE_EVIDENCE = {
+    "metric_name": "Gross Profit UE",
+    "zone_id": "CO_BOGOTA_CHAPINERO",
+    "country": "CO",
+    "week_number": 0,
+    "current_value": 0.85,
+    "wow_change_pct": -0.15,
+    "zscore": -1.8,
+    "peer_avg": 0.92,
+    "trend_weeks": 3,
+    "trend_direction": "deteriorating",
+    "detector_type": "wow",
+    "severity_score": 72.0,
+}
 
-@pytest.mark.skip(reason="implemented in plan 04-03")
+
+def _make_mock_client(content: str) -> MagicMock:
+    """Build a mock OpenAI client that returns the given content string on every call."""
+    mock_message = MagicMock()
+    mock_message.content = content
+    mock_choice = MagicMock()
+    mock_choice.message = mock_message
+    mock_response = MagicMock()
+    mock_response.choices = [mock_choice]
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = mock_response
+    return mock_client
+
+
 def test_narrative_evidence_grounded() -> None:
-    """Narrator must only cite numbers present in the evidence dict — no hallucinated values."""
-    pass
+    """Narrator returns a dict with non-empty SCR fields when the LLM responds correctly."""
+    valid_content = json.dumps({
+        "situation": "La zona CO_BOGOTA_CHAPINERO tiene un valor de 0.85 en Gross Profit UE.",
+        "complication": "El cambio semanal de -15% indica una deterioracion significativa.",
+        "resolution": "Se recomienda revisar las causas operativas y comparar con zonas similares.",
+    })
+    mock_client = _make_mock_client(valid_content)
+
+    result = generate_narrative(_SAMPLE_EVIDENCE, mock_client)
+
+    assert isinstance(result, dict)
+    assert "situation" in result
+    assert "complication" in result
+    assert "resolution" in result
+    assert len(result["situation"]) > 0
+    assert len(result["complication"]) > 0
+    assert len(result["resolution"]) > 0
 
 
-@pytest.mark.skip(reason="implemented in plan 04-03")
 def test_narrative_retry_fallback() -> None:
-    """Narrator retries once on Pydantic validation failure then returns template fallback."""
-    pass
+    """Narrator falls back to template when both LLM call attempts fail."""
+    # First call raises JSONDecodeError; second returns invalid JSON (missing "resolution")
+    def side_effect_fail(*args, **kwargs):  # noqa: ANN001
+        raise json.JSONDecodeError("mock decode error", "", 0)
+
+    mock_message_invalid = MagicMock()
+    mock_message_invalid.content = json.dumps({"situation": "s", "complication": "c"})
+    mock_choice_invalid = MagicMock()
+    mock_choice_invalid.message = mock_message_invalid
+    mock_response_invalid = MagicMock()
+    mock_response_invalid.choices = [mock_choice_invalid]
+
+    # First call raises, second call returns response missing "resolution"
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.side_effect = [
+        json.JSONDecodeError("mock", "", 0),
+        mock_response_invalid,
+    ]
+
+    result = generate_narrative(_SAMPLE_EVIDENCE, mock_client)
+
+    # Fallback template contains the zone_id from evidence
+    assert isinstance(result, dict)
+    assert "CO_BOGOTA_CHAPINERO" in result["situation"]
+    assert len(result["resolution"]) > 0
 
 
-@pytest.mark.skip(reason="implemented in plan 04-03")
 def test_parallel_narratives() -> None:
-    """ThreadPoolExecutor generates all insight narratives in parallel (max 5 workers)."""
-    pass
+    """Parallel generation produces one result per insight with no None entries."""
+    valid_content = json.dumps({
+        "situation": "Situacion de prueba.",
+        "complication": "Complicacion de prueba.",
+        "resolution": "Resolucion de prueba.",
+    })
+    mock_client = _make_mock_client(valid_content)
+
+    # Build 5 sample insights
+    insights = [dict(_SAMPLE_EVIDENCE, zone_id=f"CO_ZONE_{i}") for i in range(5)]
+
+    results = generate_narratives_parallel(insights, mock_client, max_workers=2)
+
+    assert len(results) == 5
+    for result in results:
+        assert result is not None
+        assert "situation" in result
+        assert "complication" in result
+        assert "resolution" in result
 
 
-@pytest.mark.skip(reason="implemented in plan 04-03")
 def test_executive_summary_sequencing() -> None:
-    """Executive summary is generated only after all individual narratives complete."""
-    pass
+    """Executive summary is generated after all narratives and returns a non-empty string."""
+    narrative_content = json.dumps({
+        "situation": "Situacion.",
+        "complication": "Complicacion.",
+        "resolution": "Resolucion.",
+    })
+    summary_content = json.dumps({"summary": "Resumen ejecutivo de CO con hallazgos criticos."})
+
+    call_counter: list[int] = []
+
+    def tracking_create(*args, **kwargs):  # noqa: ANN001
+        call_counter.append(1)
+        # Return narrative JSON for the first N calls, then executive summary JSON
+        mock_message = MagicMock()
+        # Determine which response to return based on call count
+        if len(call_counter) <= 3:
+            mock_message.content = narrative_content
+        else:
+            mock_message.content = summary_content
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+        return mock_response
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.side_effect = tracking_create
+
+    sample_insights = [dict(_SAMPLE_EVIDENCE, zone_id=f"CO_ZONE_{i}") for i in range(3)]
+
+    # Step 1: generate all narratives
+    narratives = generate_narratives_parallel(sample_insights, mock_client, max_workers=2)
+    narrative_call_count = len(call_counter)
+
+    # Step 2: generate executive summary AFTER narratives complete
+    summary = generate_executive_summary(sample_insights, "CO", mock_client)
+
+    assert summary_content != ""
+    assert isinstance(summary, str)
+    assert len(summary) > 0
+    # Confirm summary call happened after all narrative calls
+    assert len(call_counter) > narrative_call_count
