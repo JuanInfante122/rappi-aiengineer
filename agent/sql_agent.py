@@ -55,5 +55,8 @@ def create_agent(db_path: Path = DB_PATH):
         max_iterations=10,
         max_execution_time=30,
         verbose=True,
-        agent_executor_kwargs={"handle_parsing_errors": True},
+        agent_executor_kwargs={
+            "handle_parsing_errors": True,
+            "return_intermediate_steps": True,
+        },
     )
