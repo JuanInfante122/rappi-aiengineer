@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reporte Semanal - {{ country }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F5F5F5; color: #1A1A1A; padding: 24px; }
+    .header { text-align: center; margin-bottom: 32px; }
+    .header h1 { font-size: 28px; color: #FF441F; margin-bottom: 8px; }
+    .header .subtitle { font-size: 14px; color: #666; }
+    .executive-summary { background: #FFF; border-radius: 12px; padding: 24px; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .executive-summary h2 { font-size: 20px; margin-bottom: 16px; color: #333; }
+    .executive-summary p { line-height: 1.6; margin-bottom: 12px; }
+    .insights-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+    @media (max-width: 900px) { .insights-grid { grid-template-columns: 1fr; } }
+    .footer { text-align: center; margin-top: 32px; font-size: 12px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Rappi Ops Intelligence</h1>
+    <div class="subtitle">Reporte Semanal de Insights - {{ country }} | Generado automaticamente</div>
+  </div>
+
+  <div class="executive-summary">
+    <h2>Resumen Ejecutivo</h2>
+    {% for paragraph in executive_summary.split('\n') %}
+      {% if paragraph.strip() %}
+        <p>{{ paragraph.strip() }}</p>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="insights-grid">
+    {% for card in cards %}
+      {{ card }}
+    {% endfor %}
+  </div>
+
+  <div class="footer">
+    <p>Generado por Rappi Ops Intelligence | Datos semana L0W</p>
+  </div>
+</body>
+</html>
