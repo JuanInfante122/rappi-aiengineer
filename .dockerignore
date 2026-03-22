@@ -1,0 +1,29 @@
+# Environment and secrets — never bake API keys into the image
+.env
+.env.*
+!.env.example
+
+# Generated database — rebuilt by ETL at container startup
+data/rappi_ops.db
+
+# Git and dev tooling
+.git
+.gitignore
+.claude
+.planning
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local virtual environments
+venv
+.venv
+env
