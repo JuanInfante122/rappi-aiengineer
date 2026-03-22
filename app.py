@@ -8,11 +8,13 @@ example questions.
 
 import base64
 import os
+import sqlite3
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
+from openai import OpenAI
 
 from agent.intent import (
     extract_last_sql,
@@ -24,6 +26,7 @@ from agent.memory import build_enriched_query, classify_response, safe_invoke
 from agent.sql_agent import create_agent
 from charts.renderer import build_chart
 from data.load_data import run_etl
+from report.generator import generate_html_report
 
 load_dotenv()
 
@@ -128,6 +131,28 @@ def get_database() -> Path:
     if not DB_PATH.exists():
         run_etl()
     return DB_PATH
+
+
+@st.cache_data
+def get_available_countries(db_path: Path) -> list[str]:
+    """Query distinct country codes from raw_input_metrics.
+
+    Cached per server process since country list is static within a dataset.
+
+    Args:
+        db_path: Path to SQLite database.
+
+    Returns:
+        Sorted list of country code strings (e.g., ['AR', 'BR', 'CO']).
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT country FROM raw_input_metrics ORDER BY country"
+        ).fetchall()
+    finally:
+        conn.close()
+    return [r[0] for r in rows]
 
 
 def get_agent():
@@ -328,6 +353,39 @@ with st.sidebar:
 
     # Data coverage context note
     st.caption("Datos: 9 paises, ~1,200 zonas, 9 semanas (L0W-L8W)")
+
+    st.divider()
+
+    st.subheader("Generar Reporte Semanal")
+    countries = get_available_countries(get_database())
+    selected_country = st.selectbox(
+        "Pais",
+        options=countries,
+        index=0,
+        key="report_country",
+    )
+
+    if st.button("Generar Reporte", key="btn_generate_report", use_container_width=True):
+        with st.spinner("Generando reporte de insights..."):
+            try:
+                client = OpenAI(api_key=get_openai_key())
+                html_report = generate_html_report(
+                    db_path=get_database(),
+                    country=selected_country,
+                    client=client,
+                )
+                if "No se encontraron insights" in html_report:
+                    st.warning(f"No se encontraron insights para {selected_country} esta semana.")
+                else:
+                    st.download_button(
+                        label="Descargar Reporte HTML",
+                        data=html_report.encode("utf-8"),
+                        file_name=f"rappi_insights_{selected_country}.html",
+                        mime="text/html",
+                        key="btn_download_report",
+                    )
+            except Exception as e:
+                st.error(f"Error generando reporte: {e}")
 
 # --- Chat display loop ---
 _bot_avatar = str(LOGO_PATH) if LOGO_PATH.exists() else None
