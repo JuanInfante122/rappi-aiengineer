@@ -1,0 +1,44 @@
+{% set severity = insight.severity_score | default(0) %}
+{% if severity >= 70 %}
+  {% set border_color = "#E53E3E" %}
+{% elif severity >= 40 %}
+  {% set border_color = "#DD6B20" %}
+{% else %}
+  {% set border_color = "#D69E2E" %}
+{% endif %}
+
+<div class="insight-card" style="background:#FFF; border-radius:10px; border-left:5px solid {{ border_color }}; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.08); position:relative;">
+  <div style="position:absolute; top:12px; right:16px; background:{{ border_color }}; color:#FFF; font-size:13px; font-weight:bold; padding:4px 10px; border-radius:12px;">
+    {{ "%.0f" | format(severity) }}
+  </div>
+
+  <div style="margin-bottom:8px;">
+    <span style="display:inline-block; background:#F0F0F0; border-radius:6px; padding:3px 10px; font-size:12px; font-weight:600; color:#333;">
+      {{ insight.zone_id }}
+    </span>
+    <span style="font-size:12px; color:#888; margin-left:8px;">{{ insight.metric_name }}</span>
+  </div>
+
+  {% if narrative %}
+  <div style="margin-bottom:12px;">
+    <div style="margin-bottom:8px;">
+      <strong style="color:#333; font-size:13px;">Situacion:</strong>
+      <span style="font-size:13px; color:#444;">{{ narrative.situation }}</span>
+    </div>
+    <div style="margin-bottom:8px;">
+      <strong style="color:#333; font-size:13px;">Complicacion:</strong>
+      <span style="font-size:13px; color:#444;">{{ narrative.complication }}</span>
+    </div>
+    <div>
+      <strong style="color:#333; font-size:13px;">Resolucion:</strong>
+      <span style="font-size:13px; color:#444;">{{ narrative.resolution }}</span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if chart_html %}
+  <div style="margin-top:12px;">
+    {{ chart_html | safe }}
+  </div>
+  {% endif %}
+</div>
