@@ -1,8 +1,11 @@
-"""Excel-to-SQLite ETL pipeline for Rappi operations data.
+"""CSV-to-SQLite ETL pipeline for Rappi operations data.
 
-Reads RAW_INPUT_METRICS and RAW_ORDERS from the source Excel file,
+Reads RAW_INPUT_METRICS and RAW_ORDERS from pre-exported CSV files,
 reshapes them from wide format (one column per week) to long format
 (one row per zone/metric/week), and writes to SQLite with indexes.
+
+CSV files were exported from data/rappi_data.xlsx (kept for reference)
+and committed to the repository for faster startup — no openpyxl overhead.
 
 Always rebuilds from scratch — drop + recreate guarantees freshness
 and eliminates the risk of stale data during demos.
@@ -19,7 +22,8 @@ from pathlib import Path
 import pandas as pd
 
 
-EXCEL_PATH = Path("data/rappi_data.xlsx")
+METRICS_CSV_PATH = Path("data/raw_input_metrics.csv")
+ORDERS_CSV_PATH = Path("data/raw_orders.csv")
 DB_PATH = Path("data/rappi_ops.db")
 
 # Exact column names verified from Excel inspection (2026-03-20)
@@ -50,7 +54,7 @@ def build_zone_id(country: str, city: str, zone: str) -> str:
     4. Collapses consecutive underscores to a single one and strips leading/
        trailing underscores.
 
-    This ensures Phase 2 queries like `WHERE zone_id LIKE '%BOGOTA%'` work
+    This ensures SQL queries like `WHERE zone_id LIKE '%BOGOTA%'` work
     reliably regardless of accented, mixed-case, or punctuated source data.
 
     Args:
@@ -81,13 +85,13 @@ def run_etl() -> None:
     Prints progress to stdout so both local and container runs are debuggable.
 
     Raises:
-        FileNotFoundError: If EXCEL_PATH does not exist.
+        FileNotFoundError: If METRICS_CSV_PATH or ORDERS_CSV_PATH does not exist.
         sqlite3.Error: If the database write fails.
     """
-    print(f"Loading {EXCEL_PATH}...")
+    print(f"Loading {METRICS_CSV_PATH} and {ORDERS_CSV_PATH}...")
 
-    df_metrics_wide = pd.read_excel(EXCEL_PATH, sheet_name='RAW_INPUT_METRICS', engine='openpyxl')
-    df_orders_wide = pd.read_excel(EXCEL_PATH, sheet_name='RAW_ORDERS', engine='openpyxl')
+    df_metrics_wide = pd.read_csv(METRICS_CSV_PATH)
+    df_orders_wide = pd.read_csv(ORDERS_CSV_PATH)
 
     print(f"  RAW_INPUT_METRICS: {len(df_metrics_wide):,} rows (wide format)")
     print(f"  RAW_ORDERS: {len(df_orders_wide):,} rows (wide format)")
