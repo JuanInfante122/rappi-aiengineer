@@ -6,8 +6,8 @@ delivered as a .html attachment rather than an inline HTML body. The email
 body contains a plain-text summary so recipients know what the file contains
 before opening it.
 
-SMTP configuration is read from environment variables so no credentials are
-baked into source code:
+SMTP configuration is read from st.secrets (Streamlit Cloud) with fallback
+to environment variables (local dev via .env):
 
     SMTP_HOST      SMTP server hostname  (e.g. smtp.gmail.com)
     SMTP_PORT      SMTP port             (587 for STARTTLS, 465 for SSL)
@@ -27,6 +27,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 
+def _get_secret(key: str, default: str = "") -> str:
+    """Read a secret from st.secrets (cloud) or env var (local)."""
+    try:
+        import streamlit as st
+        return st.secrets.get(key, os.getenv(key, default))
+    except Exception:
+        return os.getenv(key, default)
+
+
 def send_report_email(
     html_content: str,
     recipient: str,
@@ -38,20 +47,23 @@ def send_report_email(
     Plotly charts render correctly. Includes a plain-text summary body so
     the email is readable even without opening the attachment.
 
+    Reads SMTP credentials from st.secrets (Streamlit Cloud) with fallback
+    to environment variables for local development.
+
     Args:
         html_content: Full HTML string produced by generate_html_report().
         recipient: Destination email address.
         country: Country code used in the subject line and filename.
 
     Raises:
-        EnvironmentError: If any required SMTP_* env var is missing.
+        EnvironmentError: If any required SMTP_* secret/var is missing.
         smtplib.SMTPException: If the SMTP connection or send fails.
     """
-    smtp_host = os.getenv("SMTP_HOST", "")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER", "")
-    smtp_password = os.getenv("SMTP_PASSWORD", "")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user)
+    smtp_host = _get_secret("SMTP_HOST")
+    smtp_port = int(_get_secret("SMTP_PORT") or "587")
+    smtp_user = _get_secret("SMTP_USER")
+    smtp_password = _get_secret("SMTP_PASSWORD")
+    smtp_from = _get_secret("SMTP_FROM") or smtp_user
 
     missing = [
         var for var, val in [
