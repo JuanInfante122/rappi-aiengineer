@@ -31,8 +31,8 @@ def _get_secret(key: str, default: str = "") -> str:
     """Read a secret from st.secrets (cloud) or env var (local)."""
     try:
         import streamlit as st
-        return st.secrets.get(key, os.getenv(key, default))
-    except Exception:
+        return str(st.secrets[key])
+    except (KeyError, FileNotFoundError):
         return os.getenv(key, default)
 
 
