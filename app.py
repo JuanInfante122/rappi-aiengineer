@@ -26,6 +26,7 @@ from agent.memory import build_enriched_query, classify_response, safe_invoke
 from agent.sql_agent import create_agent
 from charts.renderer import build_chart
 from data.load_data import run_etl
+from report.emailer import send_report_email
 from report.generator import generate_html_report
 
 load_dotenv()
@@ -365,6 +366,12 @@ with st.sidebar:
         key="report_country",
     )
 
+    report_email = st.text_input(
+        "Enviar reporte por email (opcional)",
+        placeholder="tu@correo.com",
+        key="report_email",
+    )
+
     if st.button("Generar Reporte", key="btn_generate_report", use_container_width=True):
         with st.spinner("Generando reporte de insights..."):
             try:
@@ -384,6 +391,21 @@ with st.sidebar:
                         mime="text/html",
                         key="btn_download_report",
                     )
+                    if report_email:
+                        try:
+                            send_report_email(
+                                html_content=html_report,
+                                recipient=report_email,
+                                country=selected_country,
+                            )
+                            st.success(f"Reporte enviado a {report_email}")
+                        except EnvironmentError:
+                            st.warning(
+                                "SMTP no configurado. Agrega SMTP_HOST, SMTP_USER y "
+                                "SMTP_PASSWORD en tu archivo .env para habilitar el envio."
+                            )
+                        except Exception as exc:
+                            st.error(f"Error al enviar el email: {exc}")
             except Exception as e:
                 st.error(f"Error generando reporte: {e}")
 
