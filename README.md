@@ -58,6 +58,12 @@ make run
 
 `make run` ejecuta `docker compose up` con la imagen Python 3.11-slim. El servicio queda disponible en `http://localhost:8501`.
 
+**Demo publica (Streamlit Cloud):**
+
+La app esta deployada en Streamlit Community Cloud. Sin instalacion ni configuracion: abre la URL y el sistema esta listo para usar.
+
+Las credenciales (OPENAI_API_KEY, SMTP) se gestionan via Streamlit Secrets — nunca estan en el repositorio.
+
 ## Bot conversacional: como usarlo
 
 Ejecutar `streamlit run app.py` o `make run`. El chat se abre en `http://localhost:8501`.
@@ -74,14 +80,17 @@ Escribir cualquier pregunta en espanol sobre las operaciones. El agente interpre
 
 Cada respuesta incluye un boton para descargar los datos en CSV y un toggle opcional para ver el SQL ejecutado.
 
-## Reporte semanal: como generarlo
+## Reporte semanal: como generarlo y enviarlo
 
 En el sidebar de Streamlit:
 
 1. Seleccionar el pais en el selector "Pais" (AR, BR, CL, CO, CR, EC, MX, PE, UY).
-2. Hacer clic en "Generar Reporte".
-3. Esperar entre 30 y 90 segundos mientras el motor ejecuta los detectores y el narrador LLM genera las narrativas.
-4. Descargar el archivo HTML con el boton "Descargar Reporte HTML".
+2. Ingresar una direccion de email en el campo "Enviar reporte por email" (opcional).
+3. Hacer clic en "Generar Reporte".
+4. Esperar entre 30 y 90 segundos mientras el motor ejecuta los detectores y el narrador LLM genera las narrativas.
+5. Descargar el archivo HTML con el boton "Descargar Reporte HTML".
+
+Si se ingreso un email, el reporte se envia automaticamente como adjunto HTML al finalizar la generacion. El cuerpo del email incluye un resumen en texto plano para clientes que no abren adjuntos.
 
 El reporte contiene:
 
@@ -90,6 +99,19 @@ El reporte contiene:
 - Archivo HTML autocontenido que abre en cualquier browser sin dependencias externas.
 
 Si no existen insights para el pais seleccionado en la semana actual, el sistema muestra un aviso en lugar del boton de descarga.
+
+**Configuracion SMTP para envio de email:**
+
+Agregar en `.env` (local) o en Streamlit Cloud → Settings → Secrets:
+
+```
+SMTP_HOST = smtp.gmail.com
+SMTP_PORT = 587
+SMTP_USER = tu@gmail.com
+SMTP_PASSWORD = tu_app_password
+```
+
+Gmail requiere una App Password (no la contrasena de cuenta). Generarla en myaccount.google.com → Seguridad → Contrasenas de aplicacion. Si las variables SMTP no estan configuradas, la app sigue funcionando — el envio por email simplemente no esta disponible.
 
 ## Costo estimado de API
 
@@ -129,7 +151,7 @@ Si no existen insights para el pais seleccionado en la semana actual, el sistema
 
 **Proximos pasos:**
 
-- Entrega programada de reportes por email (weekly digest automatico).
+- Entrega programada de reportes por email (weekly digest automatico via cron).
 - Cache Redis para reutilizar insights calculados dentro de la misma semana.
 - Streaming de tokens en el chat para reducir la latencia percibida en respuestas largas.
 - Autenticacion multi-usuario con roles (viewer, analyst, admin).
